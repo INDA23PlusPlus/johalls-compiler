@@ -1,0 +1,21 @@
+<digit> ::= [0-9]
+<letter> ::= [A-Z] | [a-z]
+<whitespace> ::= " " | "\t" | "\n" | "\r"
+<optional_whitespace> ::= <whitespace>* 
+<ow> ::= <optional_whitespace> 
+
+<arithmetic_operator> ::= "+" | "*" | "/" | "-"
+<comparison_operator> ::= "==" | "!=" | ">" | ">=" | "<" | "<="
+
+<binary_logical_operator> ::= "&&" | "||"
+<unary_logical_operator> ::= "!"
+
+<binary_bitwise_operator> ::= "^" | "|" | "&"
+<unary_bitwise_operator> ::= "~"
+
+<binary_operator> ::= <arithmetic_operator> | <binary_logical_operator> | <binary_bitwise_operator> | <comparison_operator>
+
+<expr> ::= <expr> <ow> <binary_operator> <ow> <expr> | <unary_logical_operator> <expr> | <unary_bitwise_operator> <expr> | <identifier> | <integer>
+<identifier> ::= <letter> | "_" | <identifier> <digit> | <identifier> "_" | <identifier> <letter>
+
+<integer> ::= <integer> <digit> | <digit>
