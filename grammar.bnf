@@ -1,10 +1,7 @@
 <digit> ::= [0-9]
 <letter> ::= [A-Z] | [a-z]
 <whitespace> ::= " " | "\t" | "\n" | "\r"
-<optional_whitespace> ::= <whitespace>*
-<ow> ::= <optional_whitespace> 
-<some_whitespace> ::= <whitespace>+
-<sw> ::= <some_whitespace>
+<w> ::= <whitespace>
 
 <arithmetic_operator> ::= "+" | "*" | "/" | "-"
 <comparison_operator> ::= "==" | "!=" | ">" | ">=" | "<" | "<="
@@ -17,17 +14,21 @@
 
 <binary_operator> ::= <arithmetic_operator> | <binary_logical_operator> | <binary_bitwise_operator> | <comparison_operator>
 
-<expr> ::= <expr> <ow> <binary_operator> <ow> <expr> | <unary_logical_operator> <expr> | <unary_bitwise_operator> <expr> | <identifier> | <integer>
+<expr> ::= <expr> <w>* <binary_operator> <w>* <expr> | <unary_logical_operator> <expr> | <unary_bitwise_operator> <expr> | "(" <expr> ")" | <identifier> | <integer>
 <identifier> ::= <letter> | "_" | <identifier> <digit> | <identifier> "_" | <identifier> <letter>
 
-<integer> ::= <integer> <digit> | <digit>
+<integer> ::= <digit>+
 
-<if> ::= "if" <sw> <expr> <ow> "{" <lines> "}" <ow>
-<else_if> ::= "else" <sw> <if> <ow>
-<else> ::= "else" <sw> "{" <lines> "}"
-<conditional> ::= <if> | <if> <ow> <else_if>* <ow> <else>
+<if> ::= "if" <w>+ <expr> <w>* "{" <lines> "}"
+<else_if> ::= "else" <w>+ <if>
+<else> ::= "else" <w>+ "{" <lines> "}"
+<conditional> ::= <if> <w>* (<else_if> <w>*)* | <if> <w>* (<else_if> <w>*)* <w>* <else>
 
-<declaration> ::= "let " <ow> <identifier> <ow> "=" <ow> <expr> ";"
+<declaration> ::= "let " <w>* <identifier> <w>* "=" <w>* <expr> ";"
 <statement> ::= <conditional>
 <line> ::= <statement> | <declaration>
-<lines> ::= <ow> | <ow> <line> <ow> <lines>
+<lines> ::= <w>* | <w>* <line> <w>* <lines>
+
+<ret_statement> ::= "return" <w>+ <expr> <w>* ";"
+<parameter_list> ::= <w>* | <identifier> <w>* ("," <w>* <identifier>)*
+<function> ::= "fn" <w>+ <identifier> <w>* "(" <w>* <parameter_list> <w>* ")" <w>* "{" <lines> <w>* <ret_statement> <w>* "}"
