@@ -1,0 +1,20 @@
+fn fib(n) {
+    if n < 2 {
+        return n;
+    } else {
+        return fib(n - 1) + fib(n - 2);
+    }
+}
+
+fn iter(i, n) {
+    if i == n {
+        return 0;
+    } else {
+        print(fib(i));
+        return iter(i + 1, n);
+    }
+}
+
+fn main() {
+    iter(0, 10);
+}
