@@ -5,6 +5,8 @@ const TokenType = enum {
     identifier,
     literal,
 
+    semicolon,
+
     if_kw,
     else_kw,
     fn_kw,
@@ -56,7 +58,7 @@ fn tokenize(allocator: Allocator, str: []const u8) !std.ArrayList(Token) {
 
     const utils = struct {
         fn clear_buf(bu: *std.ArrayList(u8), re: *std.ArrayList(Token), idx: usize) !void {
-            // std.debug.print("{s} {}\n", .{ bu.items, bu.items.len });
+            std.debug.print("{s} {}\n", .{ bu.items, bu.items.len });
             if (bu.items.len == 0) {
                 return;
             }
@@ -71,6 +73,7 @@ fn tokenize(allocator: Allocator, str: []const u8) !std.ArrayList(Token) {
                 .{ .tp = .else_kw, .str = "else" },
                 .{ .tp = .fn_kw, .str = "fn" },
                 .{ .tp = .return_kw, .str = "return" },
+                .{ .tp = .semicolon, .str = ";" },
                 .{ .tp = .lparen, .str = "(" },
                 .{ .tp = .rparen, .str = ")" },
                 .{ .tp = .lbrace, .str = "{" },
@@ -117,9 +120,9 @@ fn tokenize(allocator: Allocator, str: []const u8) !std.ArrayList(Token) {
             try utils.clear_buf(&buf, &res, i - buf.items.len);
             continue;
         }
-        const ch_is_paren = std.mem.indexOf(u8, "{}()", &[1]u8{ch}) != null;
+        const ch_is_paren_or_semicolon = std.mem.indexOf(u8, "{}();", &[1]u8{ch}) != null;
         const buf_is_paren = std.mem.indexOfAny(u8, buf.items, "{}()") != null;
-        if (ch_is_paren or buf_is_paren) {
+        if (ch_is_paren_or_semicolon or buf_is_paren) {
             try utils.clear_buf(&buf, &res, i - buf.items.len);
         }
 
@@ -155,7 +158,7 @@ pub fn main() !void {
         std.debug.print("Opening file failed with error: '{}'\n", .{err});
         return;
     };
-    
+
     defer input_file.close();
     const file_contents = try input_file.readToEndAlloc(allocator, 100 << 20); // if your file is more than 100MB, wtf are you doing?
     defer allocator.free(file_contents);
@@ -173,10 +176,13 @@ pub fn main() !void {
     );
     defer tokens.deinit();
 
+    try stdout.print("Compiling: '{s}'\n", .{args[1]});
+
     for (tokens.items) |e| {
         const slice = switch (e.tp) {
             .identifier => "[identifier]",
             .literal => "[literal]",
+            .semicolon => ";",
 
             .if_kw => "if",
             .else_kw => "else",
@@ -205,14 +211,12 @@ pub fn main() !void {
             .rbrace => "}",
         };
 
-        if (e.tp == .rparen or e.tp == .lbrace or e.tp == .rbrace) {
+        if (e.tp == .lbrace or e.tp == .rbrace or e.tp == .semicolon) {
             try stdout.print("{s}\n", .{slice});
         } else {
             try stdout.print("{s} ", .{slice});
         }
     }
-
-    try stdout.print("Compiling: '{s}'\n", .{args[1]});
 }
 
 test "simple test" {
