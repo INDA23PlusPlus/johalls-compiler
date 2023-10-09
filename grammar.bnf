@@ -12,23 +12,26 @@
 <binary_bitwise_operator> ::= "^" | "|" | "&"
 <unary_bitwise_operator> ::= "~"
 
+<unary_operator> ::= <unary_logical_operator> | <unary_bitwise_operator>
 <binary_operator> ::= <arithmetic_operator> | <binary_logical_operator> | <binary_bitwise_operator> | <comparison_operator>
 
-<expr> ::= <expr> <w>* <binary_operator> <w>* <expr> | <unary_logical_operator> <expr> | <unary_bitwise_operator> <expr> | "(" <expr> ")" | <identifier> | <integer>
+<parameter_list> ::= "(" <w>* (<expr> <w>* ("," <w>* <expr> <w>*)* <w>*)? ")"
+<function_call> ::= <identifier> <w>* <parameter_list>
+<expr> ::= <expr> <w>* <binary_operator> <w>* <expr> | <unary_operator> <expr> | "(" <expr> ")" | <identifier> | <integer> | <function_call>
 <identifier> ::= <letter> | "_" | <identifier> <digit> | <identifier> "_" | <identifier> <letter>
 
 <integer> ::= <digit>+
 
-<if> ::= "if" <w>+ <expr> <w>* "{" <lines> "}"
-<else_if> ::= "else" <w>+ <if>
-<else> ::= "else" <w>+ "{" <lines> "}"
-<conditional> ::= <if> <w>* (<else_if> <w>*)* | <if> <w>* (<else_if> <w>*)* <w>* <else>
+<if> ::= "if" <w>+ <expr> <w>* <block>
+<else> ::= "else" <w>* <block>
+<conditional> ::= <if> <w>* | <if> <w>* <else>
 
 <declaration> ::= "let " <w>* <identifier> <w>* "=" <w>* <expr> ";"
-<statement> ::= <conditional>
-<line> ::= <statement> | <declaration>
-<lines> ::= <w>* | <w>* <line> <w>* <lines>
+<ret> ::= "return" <w>+ <expr> <w>* ";"
+<statement> ::= <conditional> | <ret> | <expr> <w>* ";"
+<block> ::= "{" <w>* (<statement> <w>*)* "}" | <statement>
 
-<ret_statement> ::= "return" <w>+ <expr> <w>* ";"
-<parameter_list> ::= <w>* | <identifier> <w>* ("," <w>* <identifier>)*
-<function> ::= "fn" <w>+ <identifier> <w>* "(" <w>* <parameter_list> <w>* ")" <w>* "{" <lines> <w>* <ret_statement> <w>* "}"
+<parameter_list_decl> ::= "(" <w>* (<identifier> <w>* ("," <w>* <identifier> <w>*)* <w>*)? ")"
+<function> ::= "fn" <w>+ <identifier> <w>* <parameter_list_decl> <w>* <block>
+
+<program> ::= <w>* (<function> <w>*)*
