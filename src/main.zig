@@ -20,9 +20,11 @@ const TokenType = enum {
     bit_or,
     bit_and,
     bit_xor,
+    bit_not,
 
     log_or,
     log_and,
+    log_not,
 
     le,
     le_eq,
@@ -80,8 +82,10 @@ fn tokenize(allocator: Allocator, input_str: []const u8) !std.ArrayList(Token) {
                 .{ .tp = .bit_or, .str = "|" },
                 .{ .tp = .bit_and, .str = "&" },
                 .{ .tp = .bit_xor, .str = "^" },
+                .{ .tp = .bit_not, .str = "~" },
                 .{ .tp = .log_or, .str = "||" },
                 .{ .tp = .log_and, .str = "&&" },
+                .{ .tp = .log_not, .str = "!" },
                 .{ .tp = .le, .str = "<" },
                 .{ .tp = .le_eq, .str = "<=" },
                 .{ .tp = .gr, .str = ">" },
@@ -107,6 +111,10 @@ fn tokenize(allocator: Allocator, input_str: []const u8) !std.ArrayList(Token) {
 
     var start: usize = 0;
     var end: usize = 0;
+    var is_all_operator_chars = true;
+
+    const delimiting_chars = "{}();!~+-/";
+    const operator_chars = "&|<>=";
     for (input_str, 0..) |ch, i| {
         if (std.mem.indexOf(u8, " \t\r\n", &[_]u8{ch}) != null) {
             try utils.append_res(input_str[start..end], &res);
@@ -114,17 +122,25 @@ fn tokenize(allocator: Allocator, input_str: []const u8) !std.ArrayList(Token) {
             // discard whitespace
             start = i + 1;
             end = i + 1;
+            is_all_operator_chars = true;
             continue;
         }
 
-        const ch_is_paren_or_semicolon = std.mem.indexOf(u8, "{}();", &[1]u8{ch}) != null;
-        const buf_is_paren = std.mem.indexOfAny(u8, input_str[start..end], "{}()") != null;
-        if (ch_is_paren_or_semicolon or buf_is_paren) {
+        const ch_is_operator_char = std.mem.indexOf(u8, operator_chars, &[_]u8{ch}) != null;
+        const ch_is_delimiting_char = std.mem.indexOf(u8, delimiting_chars, &[_]u8{ch}) != null;
+        const buf_is_delimiting_char = std.mem.indexOfAny(u8, input_str[start..end], delimiting_chars) != null;
+
+        const buf_is_two_char_operator = is_all_operator_chars and end - start == 2;
+        const buf_is_op_followed_by_operator = !is_all_operator_chars and end - start >= 1 and ch_is_operator_char;
+
+        if (ch_is_delimiting_char or buf_is_delimiting_char or buf_is_two_char_operator or buf_is_op_followed_by_operator) {
             try utils.append_res(input_str[start..end], &res);
             start = i;
             end = i;
+            is_all_operator_chars = true;
         }
 
+        is_all_operator_chars = is_all_operator_chars and ch_is_operator_char;
         end += 1;
     }
     if (start < input_str.len) {
@@ -164,20 +180,18 @@ pub fn main() !void {
     const file_contents = try input_file.readToEndAlloc(allocator, 100 << 20); // if your file is more than 100MB, wtf are you doing?
     defer allocator.free(file_contents);
 
-    var tokens = try tokenize(allocator,
-
-    file_contents
+    var tokens = try tokenize(allocator, file_contents
     // "\nfn fib(n)"
 
-        // \\
-        // \\fn fib(n)
-        // \\ {
-        // \\  if n < 2 {
-        // \\    return n;
-        // \\  } else {
-        // \\    return fib(n - 1) + fib(n - 2);
-        // \\  }
-        // \\}
+    // \\
+    // \\fn fib(n)
+    // \\ {
+    // \\  if n < 2 {
+    // \\    return n;
+    // \\  } else {
+    // \\    return fib(n - 1) + fib(n - 2);
+    // \\  }
+    // \\}
     );
     defer tokens.deinit();
 
@@ -201,8 +215,12 @@ pub fn main() !void {
             .bit_or => "|",
             .bit_and => "&",
             .bit_xor => "^",
+            .bit_not => "~",
+
             .log_or => "||",
             .log_and => "&&",
+            .log_not => "!",
+
             .le => "<",
             .le_eq => "<=",
             .gr => ">",
