@@ -131,9 +131,10 @@ fn tokenize(allocator: Allocator, input_str: []const u8) !std.ArrayList(Token) {
         const buf_is_delimiting_char = std.mem.indexOfAny(u8, input_str[start..end], delimiting_chars) != null;
 
         const buf_is_two_char_operator = is_all_operator_chars and end - start == 2;
-        const buf_is_op_followed_by_operator = !is_all_operator_chars and end - start >= 1 and ch_is_operator_char;
+        const buf_is_operation_followed_by_operator = !is_all_operator_chars and end - start >= 1 and ch_is_operator_char;
+        const buf_is_operator_followed_by_operation = is_all_operator_chars and end - start == 1 and !ch_is_operator_char;
 
-        if (ch_is_delimiting_char or buf_is_delimiting_char or buf_is_two_char_operator or buf_is_op_followed_by_operator) {
+        if (ch_is_delimiting_char or buf_is_delimiting_char or buf_is_two_char_operator or buf_is_operation_followed_by_operator or buf_is_operator_followed_by_operation) {
             try utils.append_res(input_str[start..end], &res);
             start = i;
             end = i;
