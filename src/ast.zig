@@ -82,6 +82,21 @@ const Expression = union(enum) {
     un: UnaryExpr,
     fn_call: FunctionCall,
 
+    fn parse(allocator: Allocator, tokens: *[]const Token) !Expression {
+        _ = allocator;
+        var s = tokens.*;
+        var res: Expression = undefined;
+        _ = res;
+
+        if (s.len < 2) {
+            return error.NotEnoughTokens;
+        }
+
+        // s = s[1..];
+
+        return Expression{ .lit = Literal{ .value = 0 } };
+    }
+
     fn deinit(self: Expression, allocator: Allocator) void {
         switch (self) {
             .bin => |a| a.deinit(allocator),
@@ -101,24 +116,56 @@ test "destruction of expressions" {
 }
 
 const If = struct {
-    condition: *Expression,
+    condition: Expression,
     true_branch: Block,
     false_branch: Block,
 
+    fn parse(allocator: Allocator, tokens: *[]const Token) !If {
+        var s = tokens.*;
+        var res: If = undefined;
+
+        if (s.len < 2) {
+            return error.NotEnoughTokens;
+        }
+
+        s = s[1..];
+        res.condition = try Expression.parse(allocator, &s);
+
+        while (s[0].tp != .lbrace) {
+            s = s[1..];
+        }
+
+        const aa = try Block.parse(allocator, &s);
+        _ = aa;
+
+        tokens.* = s;
+
+        return res;
+    }
+
     fn deinit(self: If, allocator: Allocator) void {
         self.condition.deinit(allocator);
-        allocator.destroy(self.condition);
+    }
+};
+
+const Return = struct {
+    returned_value: Expression,
+
+    fn deinit(self: Return, allocator: Allocator) void {
+        self.returned_value.deinit(allocator);
     }
 };
 
 const Statement = union(enum) {
-    empty,
     expr: Expression,
+    ret: Return,
+    conditional: If,
 
     fn deinit(self: Statement, allocator: Allocator) void {
         switch (self) {
-            .empty => {},
-            .expr => |e| e.deinit(allocator),
+            .expr => |a| a.deinit(allocator),
+            .ret => |a| a.deinit(allocator),
+            .conditional => |a| a.deinit(allocator),
         }
     }
 };
@@ -141,9 +188,21 @@ const Block = struct {
         }
 
         s = s[1..];
-        var brace_count: usize = 1;
 
-        while (brace_count > 0) {
+        // while (s[0].tp != .rbrace) {
+        //     if (s[0].tp == .if_kw) {
+        //         try res.statements.append(Statement{ .conditional = try If.parse(allocator, &s) });
+        //         continue;
+        //     }
+
+        //     s = s[1..];
+        // }
+
+
+        // temporary
+        // just discards the entire block
+        var brace_count: usize = 1;
+        while ( brace_count > 0) {
             brace_count += @intFromBool(s[0].tp == .lbrace);
             brace_count -= @intFromBool(s[0].tp == .rbrace);
             s = s[1..];
