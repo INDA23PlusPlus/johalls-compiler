@@ -41,25 +41,20 @@ const TokenType = enum {
 
 const Token = struct {
     tp: TokenType,
-    idx: usize,
+    str: []const u8,
 
-    fn new(tp: TokenType, idx: usize) Token {
-        return .{ .tp = tp, .idx = idx };
+    fn new(tp: TokenType, str: []const u8) Token {
+        return .{ .tp = tp, .str = str };
     }
 };
 
-fn tokenize(allocator: Allocator, str: []const u8) !std.ArrayList(Token) {
+fn tokenize(allocator: Allocator, input_str: []const u8) !std.ArrayList(Token) {
     var res = std.ArrayList(Token).init(allocator);
 
-    // try res.append(Token.new(.identifier, 0));
-
-    var buf = std.ArrayList(u8).init(allocator);
-    defer buf.deinit();
-
     const utils = struct {
-        fn clear_buf(bu: *std.ArrayList(u8), re: *std.ArrayList(Token), idx: usize) !void {
-            std.debug.print("{s} {}\n", .{ bu.items, bu.items.len });
-            if (bu.items.len == 0) {
+        fn append_res(str: []const u8, re: *std.ArrayList(Token)) !void {
+            // std.debug.print("{s} {}\n", .{ str, str.len });
+            if (str.len == 0) {
                 return;
             }
 
@@ -95,40 +90,46 @@ fn tokenize(allocator: Allocator, str: []const u8) !std.ArrayList(Token) {
                 .{ .tp = .n_eq, .str = "!=" },
             };
 
-            var matched = false;
             inline for (reprs) |rep| {
-                if (std.mem.eql(u8, bu.items, rep.str)) {
-                    try re.append(Token.new(rep.tp, idx));
-                    matched = true;
+                if (std.mem.eql(u8, str, rep.str)) {
+                    try re.append(Token.new(rep.tp, str));
+                    return;
                 }
             }
-            if (!matched) {
-                const first_char = bu.items[0];
-                if ('0' <= first_char and first_char <= '9') {
-                    try re.append(Token.new(.literal, idx));
-                } else {
-                    try re.append(Token.new(.identifier, idx));
-                }
+            const first_char = str[0];
+            if ('0' <= first_char and first_char <= '9') {
+                try re.append(Token.new(.literal, str));
+            } else {
+                try re.append(Token.new(.identifier, str));
             }
-
-            bu.clearRetainingCapacity();
         }
     };
 
-    for (str, 0..) |ch, i| {
-        if (std.mem.indexOf(u8, " \t\r\n", &[1]u8{ch}) != null) {
-            try utils.clear_buf(&buf, &res, i - buf.items.len);
+    var start: usize = 0;
+    var end: usize = 0;
+    for (input_str, 0..) |ch, i| {
+        if (std.mem.indexOf(u8, " \t\r\n", &[_]u8{ch}) != null) {
+            try utils.append_res(input_str[start..end], &res);
+
+            // discard whitespace
+            start = i + 1;
+            end = i + 1;
             continue;
         }
+
         const ch_is_paren_or_semicolon = std.mem.indexOf(u8, "{}();", &[1]u8{ch}) != null;
-        const buf_is_paren = std.mem.indexOfAny(u8, buf.items, "{}()") != null;
+        const buf_is_paren = std.mem.indexOfAny(u8, input_str[start..end], "{}()") != null;
         if (ch_is_paren_or_semicolon or buf_is_paren) {
-            try utils.clear_buf(&buf, &res, i - buf.items.len);
+            try utils.append_res(input_str[start..end], &res);
+            start = i;
+            end = i;
         }
 
-        try buf.append(ch);
+        end += 1;
     }
-    try utils.clear_buf(&buf, &res, str.len - buf.items.len);
+    if (start < input_str.len) {
+        try utils.append_res(input_str[start..end], &res);
+    }
 
     return res;
 }
@@ -163,16 +164,20 @@ pub fn main() !void {
     const file_contents = try input_file.readToEndAlloc(allocator, 100 << 20); // if your file is more than 100MB, wtf are you doing?
     defer allocator.free(file_contents);
 
-    var tokens = try tokenize(allocator, file_contents
+    var tokens = try tokenize(allocator,
 
-    // \\
-    // \\fn fib(n) {
-    // \\  if n < 2 {
-    // \\    return n;
-    // \\  } else {
-    // \\    return fib(n - 1) + fib(n - 2);
-    // \\  }
-    // \\}
+    file_contents
+    // "\nfn fib(n)"
+
+        // \\
+        // \\fn fib(n)
+        // \\ {
+        // \\  if n < 2 {
+        // \\    return n;
+        // \\  } else {
+        // \\    return fib(n - 1) + fib(n - 2);
+        // \\  }
+        // \\}
     );
     defer tokens.deinit();
 
