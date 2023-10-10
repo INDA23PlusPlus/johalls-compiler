@@ -52,12 +52,21 @@ pub const FunctionCall = struct {
     }
 };
 
+pub const ParenthesizedExpression = struct {
+    child: *Expression,
+    fn deinit(self: ParenthesizedExpression, allocator: Allocator) void {
+        self.child.deinit(allocator);
+        allocator.destroy(self.child);
+    }
+};
+
 pub const Expression = union(enum) {
     lit: Literal,
     ident: Identifier,
     bin: BinaryExpr,
     un: UnaryExpr,
     fn_call: FunctionCall,
+    paren: ParenthesizedExpression,
 
     fn parse(allocator: Allocator, tokens: *[]const Token) !Expression {
         var s = tokens.*;
@@ -80,19 +89,24 @@ pub const Expression = union(enum) {
         } else if (s[0].tp == .identifier) {
             res = Expression{ .ident = Identifier.parse(s[0]) };
             s = s[1..];
-        }
-        if (s[0].tp == .lparen) {
-            const temp = res;
-            res = Expression{ .fn_call = FunctionCall{ .arguments = std.ArrayList(Expression).init(allocator), .function_name = temp.ident } };
+            if (s[0].tp == .lparen) {
+                const temp = res;
+                res = Expression{ .fn_call = FunctionCall{ .arguments = std.ArrayList(Expression).init(allocator), .function_name = temp.ident } };
 
-            s = s[1..];
-            while (s[0].tp != .rparen) {
-                try res.fn_call.arguments.append(try Expression.parse(allocator, &s));
-                if (s[0].tp == .comma) {
-                    s = s[1..];
+                s = s[1..];
+                while (s[0].tp != .rparen) {
+                    try res.fn_call.arguments.append(try Expression.parse(allocator, &s));
+                    if (s[0].tp == .comma) {
+                        s = s[1..];
+                    }
                 }
+                s = s[1..];
             }
-            s = s[1..];
+        } else if (s[0].tp == .lparen) {
+            s = s[1..]; // discard left paren
+            res = Expression{ .paren = ParenthesizedExpression{ .child = try allocator.create(Expression) } };
+            res.paren.child.* = try Expression.parse(allocator, &s);
+            s = s[1..]; // discard right paren
         }
 
         while (s.len > 0 and s[0].is_binary_operator()) {
@@ -113,6 +127,7 @@ pub const Expression = union(enum) {
             .bin => |a| a.deinit(allocator),
             .un => |a| a.deinit(allocator),
             .fn_call => |a| a.deinit(allocator),
+            .paren => |a| a.deinit(allocator),
             .ident => {},
             .lit => {},
         }

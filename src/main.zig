@@ -92,6 +92,11 @@ pub fn main() !void {
                     .ident => |i| {
                         std.debug.print("{s}", .{i.name});
                     },
+                    .paren => |p| {
+                        std.debug.print("(", .{});
+                        print_expr(p.child.*);
+                        std.debug.print(")", .{});
+                    },
                     .fn_call => |f| {
                         std.debug.print("{s}(", .{f.function_name.name});
                         var first = true;
