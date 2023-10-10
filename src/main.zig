@@ -1,7 +1,7 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
 
-const tokenization = @import("tokenize.zig");
+const tokenization = @import("token.zig");
 const tokenize = tokenization.tokenize;
 const Token = tokenization.Token;
 

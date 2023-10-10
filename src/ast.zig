@@ -1,7 +1,8 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
-const Token = @import("tokenize.zig").Token;
-const TokenType = @import("tokenize.zig").TokenType;
+const token = @import("token.zig");
+const Token = token.Token;
+const TokenType = token.TokenType;
 
 pub const Literal = struct {
     value: i64,

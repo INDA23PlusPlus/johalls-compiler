@@ -59,7 +59,7 @@ pub fn build(b: *std.Build) void {
     for ([_][]const u8{
         "src/main.zig",
         "src/ast.zig",
-        "src/tokenize.zig",
+        "src/token.zig",
     }) |file| {
         const unit_tests = b.addTest(.{
             .root_source_file = .{ .path = file },
