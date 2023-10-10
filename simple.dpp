@@ -1,6 +1,6 @@
 fn f(n) {
     if n {
-        return f(n - 1);
+        return f(n - 1) *(fib(~n-!1)+!2) - 1;
     }
     return 1;
 }

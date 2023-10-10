@@ -1,6 +1,6 @@
 fn fib_contrived(n) {
     if n<2&&!(!1) {
-        return n & 3;
+        return (n & ~~3);
     } else {
         return fib_contrived(n - 1) + fib_contrived(n - 2);
     }
@@ -9,7 +9,7 @@ fn fib_contrived(n) {
 fn iter(i, n) {
     if i == n {
         return 0;
-    } else {
+    } else if 1 {
         print(fib_contrived(i));
         return iter(i + 1, n);
     }

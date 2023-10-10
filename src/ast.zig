@@ -243,7 +243,9 @@ const Block = struct {
         }
 
         if (s[0].tp != .lbrace) {
-            return error.IncorrectToken;
+            try res.statements.append(try Statement.parse(allocator, &s));
+            tokens.* = s;
+            return res;
         }
 
         // discard left brace
