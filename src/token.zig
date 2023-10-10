@@ -17,6 +17,7 @@ pub const TokenType = enum {
     subtract,
     multiply,
     divide,
+    modulo,
 
     bit_or,
     bit_and,
@@ -48,6 +49,34 @@ pub const TokenType = enum {
             }
         }
         return null;
+    }
+
+    pub fn get_precedence(self: TokenType) ?usize {
+        return switch (self) {
+            .multiply => 0,
+            .divide => 0,
+            .modulo => 0,
+
+            .add => 1,
+            .subtract => 1,
+
+            .le => 2,
+            .le_eq => 2,
+            .gr => 2,
+            .gr_eq => 2,
+
+            .eq => 3,
+            .n_eq => 3,
+
+            .bit_and => 4,
+            .bit_xor => 5,
+            .bit_or => 6,
+
+            .log_and => 7,
+            .log_or => 8,
+
+            else => null,
+        };
     }
 };
 
@@ -114,6 +143,7 @@ const TokenRepresentations = [_]TokenStringRepr{
     .{ .tp = .subtract, .str = "-" },
     .{ .tp = .multiply, .str = "*" },
     .{ .tp = .divide, .str = "/" },
+    .{ .tp = .modulo, .str = "%" },
     .{ .tp = .bit_or, .str = "|" },
     .{ .tp = .bit_and, .str = "&" },
     .{ .tp = .bit_xor, .str = "^" },
