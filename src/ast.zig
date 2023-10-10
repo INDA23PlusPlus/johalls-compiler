@@ -1,8 +1,9 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
 const Token = @import("tokenize.zig").Token;
+const TokenType = @import("tokenize.zig").TokenType;
 
-const Literal = struct {
+pub const Literal = struct {
     value: i64,
 
     fn parse(tok: Token) Literal {
@@ -10,7 +11,7 @@ const Literal = struct {
     }
 };
 
-const Identifier = struct {
+pub const Identifier = struct {
     name: []const u8,
 
     fn parse(tok: Token) Identifier {
@@ -18,11 +19,8 @@ const Identifier = struct {
     }
 };
 
-const UnaryExpr = struct {
-    op: enum {
-        log_not,
-        bit_not,
-    },
+pub const UnaryExpr = struct {
+    op: TokenType,
     expr: *Expression,
     fn deinit(self: UnaryExpr, allocator: Allocator) void {
         self.expr.deinit(allocator);
@@ -30,29 +28,8 @@ const UnaryExpr = struct {
     }
 };
 
-const BinaryExpr = struct {
-    op: enum {
-        add,
-        subtract,
-        multiply,
-        divide,
-
-        bit_or,
-        bit_and,
-        bit_xor,
-
-        log_or,
-        log_and,
-
-        le,
-        le_eq,
-
-        gr,
-        gr_eq,
-
-        eq,
-        n_eq,
-    },
+pub const BinaryExpr = struct {
+    op: TokenType,
     lexpr: *Expression,
     rexpr: *Expression,
     fn deinit(self: BinaryExpr, allocator: Allocator) void {
@@ -63,7 +40,7 @@ const BinaryExpr = struct {
     }
 };
 
-const FunctionCall = struct {
+pub const FunctionCall = struct {
     function_name: Identifier,
     arguments: std.ArrayList(Expression),
 
@@ -75,7 +52,7 @@ const FunctionCall = struct {
     }
 };
 
-const Expression = union(enum) {
+pub const Expression = union(enum) {
     lit: Literal,
     ident: Identifier,
     bin: BinaryExpr,
@@ -87,11 +64,7 @@ const Expression = union(enum) {
         var res: Expression = undefined;
 
         if (s[0].is_unary_operator()) {
-            res = Expression{ .un = UnaryExpr{ .op = switch (s[0].tp) {
-                .bit_not => .bit_not,
-                .log_not => .log_not,
-                else => unreachable,
-            }, .expr = try allocator.create(Expression) } };
+            res = Expression{ .un = UnaryExpr{ .op = s[0].tp, .expr = try allocator.create(Expression) } };
             tokens.* = tokens.*[1..];
             res.un.expr.* = try Expression.parse(allocator, tokens);
             return res;
@@ -108,30 +81,25 @@ const Expression = union(enum) {
             res = Expression{ .ident = Identifier.parse(s[0]) };
             s = s[1..];
         }
+        if (s[0].tp == .lparen) {
+            const temp = res;
+            res = Expression{ .fn_call = FunctionCall{ .arguments = std.ArrayList(Expression).init(allocator), .function_name = temp.ident } };
+
+            s = s[1..];
+            while (s[0].tp != .rparen) {
+                try res.fn_call.arguments.append(try Expression.parse(allocator, &s));
+                if (s[0].tp == .comma) {
+                    s = s[1..];
+                }
+            }
+            s = s[1..];
+        }
 
         while (s.len > 0 and s[0].is_binary_operator()) {
-            var temp = res;
-            res = Expression{ .bin = BinaryExpr{ .lexpr = try allocator.create(Expression), .op = switch (s[0].tp) {
-                .add => .add,
-                .subtract => .subtract,
-                .multiply => .multiply,
-                .divide => .divide,
-                .bit_or => .bit_or,
-                .bit_and => .bit_and,
-                .bit_xor => .bit_xor,
-                .log_or => .log_or,
-                .log_and => .log_and,
-                .le => .le,
-                .le_eq => .le_eq,
-                .gr => .gr,
-                .gr_eq => .gr_eq,
-                .eq => .eq,
-                .n_eq => .n_eq,
-                else => unreachable,
-            }, .rexpr = try allocator.create(Expression) } };
+            const temp = res;
+            res = Expression{ .bin = BinaryExpr{ .lexpr = try allocator.create(Expression), .op = s[0].tp, .rexpr = try allocator.create(Expression) } };
             res.bin.lexpr.* = temp;
-            s = s[1..];
-
+            s = s[1..]; // discard operator token
             res.bin.rexpr.* = try Expression.parse(allocator, &s);
         }
 
@@ -175,7 +143,8 @@ const If = struct {
         s = s[1..];
         res.condition = try Expression.parse(allocator, &s);
 
-        std.debug.print("should be lbrace {}\n", .{s[0].tp});
+        if (s[0].tp != .lbrace)
+            std.debug.panic("should be lbrace {}\n", .{s[0].tp});
 
         res.true_branch = try Block.parse(allocator, &s);
 
@@ -213,7 +182,7 @@ const Return = struct {
     }
 };
 
-const Statement = union(enum) {
+pub const Statement = union(enum) {
     expr: Expression, // this is needed to allow print statements
     ret: Return,
     conditional: If,
@@ -311,7 +280,7 @@ pub const Function = struct {
             paren_count -= @intFromBool(s[0].tp == .rparen);
             s = s[1..];
         }
-        std.debug.print("parsing function {}\n", .{s[0].tp});
+        // std.debug.print("parsing function {}\n", .{s[0].tp});
         tokens.* = s;
 
         res.children = try Block.parse(allocator, tokens);

@@ -1,7 +1,7 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
 
-const TokenType = enum {
+pub const TokenType = enum {
     identifier,
     literal,
 
@@ -40,6 +40,15 @@ const TokenType = enum {
     rparen,
     lbrace,
     rbrace,
+
+    pub fn get_representation(self: TokenType) ?[]const u8 {
+        for (TokenRepresentations) |repr| {
+            if (repr.tp == self) {
+                return repr.str;
+            }
+        }
+        return null;
+    }
 };
 
 pub const Token = struct {
