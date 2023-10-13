@@ -327,6 +327,12 @@ pub const AST = struct {
         return res;
     }
 
+    pub fn check(self: AST) ?anyerror {
+        _ = self;
+
+        return null;
+    }
+
     pub fn deinit(self: AST, allocator: Allocator) void {
         for (self.functions.items) |f| {
             f.deinit(allocator);

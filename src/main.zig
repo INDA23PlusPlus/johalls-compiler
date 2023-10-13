@@ -1,14 +1,14 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
 
-const tokenization = @import("token.zig");
-const tokenize = tokenization.tokenize;
-const Token = tokenization.Token;
+const token = @import("token.zig");
+const tokenize = token.tokenize;
+const Token = token.Token;
 
-const ast_mod = @import("ast.zig");
-const AST = ast_mod.AST;
-const Statement = ast_mod.Statement;
-const Expression = ast_mod.Expression;
+const astm = @import("ast.zig");
+const AST = astm.AST;
+const Statement = astm.Statement;
+const Expression = astm.Expression;
 
 pub fn main() !void {
     const stdout_file = std.io.getStdOut().writer();
@@ -35,8 +35,8 @@ pub fn main() !void {
         std.debug.print("Opening file failed with error: '{}'\n", .{err});
         return;
     };
-
     defer input_file.close();
+
     const file_contents = try input_file.readToEndAlloc(allocator, 100 << 20); // if your file is more than 100MB, wtf are you doing?
     defer allocator.free(file_contents);
 
