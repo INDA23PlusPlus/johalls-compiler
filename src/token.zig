@@ -12,6 +12,9 @@ pub const TokenType = enum {
     else_kw,
     fn_kw,
     return_kw,
+    let_kw,
+
+    assign,
 
     add,
     subtract,
@@ -133,6 +136,8 @@ const TokenRepresentations = [_]TokenStringRepr{
     .{ .tp = .else_kw, .str = "else" },
     .{ .tp = .fn_kw, .str = "fn" },
     .{ .tp = .return_kw, .str = "return" },
+    .{ .tp = .let_kw, .str = "let" },
+    .{ .tp = .assign, .str = "=" },
     .{ .tp = .semicolon, .str = ";" },
     .{ .tp = .comma, .str = "," },
     .{ .tp = .lparen, .str = "(" },

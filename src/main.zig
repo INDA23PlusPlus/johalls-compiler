@@ -21,10 +21,10 @@ pub fn main() !void {
 
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = gpa.deinit();
-    const allocator = gpa.allocator();
+    const gpa_allocator = gpa.allocator();
 
-    const args = try std.process.argsAlloc(allocator);
-    defer std.process.argsFree(allocator, args);
+    const args = try std.process.argsAlloc(gpa_allocator);
+    defer std.process.argsFree(gpa_allocator, args);
 
     if (args.len < 2) {
         try stdout.print("No D++ file provided.\n", .{});
@@ -37,10 +37,10 @@ pub fn main() !void {
     };
     defer input_file.close();
 
-    const file_contents = try input_file.readToEndAlloc(allocator, 100 << 20); // if your file is more than 100MB, wtf are you doing?
-    defer allocator.free(file_contents);
+    const file_contents = try input_file.readToEndAlloc(gpa_allocator, 100 << 20); // if your file is more than 100MB, wtf are you doing?
+    defer gpa_allocator.free(file_contents);
 
-    var tokens = try tokenize(allocator, file_contents
+    var tokens = try tokenize(gpa_allocator, file_contents
     // "\nfn fib(n)"
 
     // \\
@@ -65,8 +65,8 @@ pub fn main() !void {
         }
     }
 
-    var ast = try AST.parse(allocator, tokens.items);
-    defer ast.deinit(allocator);
+    var ast = try AST.parse(std.heap.page_allocator, tokens.items);
+    defer ast.deinit();
 
     try stdout.print("num tokens {}\n", .{tokens.items.len});
     try stdout.print("num functions {}\n", .{ast.functions.items.len});
@@ -120,6 +120,12 @@ pub fn main() !void {
 
             fn print_statement(st: Statement, indentation_level: usize) void {
                 switch (st) {
+                    .assign => |a| {
+                        print_indentation(indentation_level);
+                        std.debug.print("let {s} = ", .{a.id.name});
+                        print_expr(a.value);
+                        std.debug.print(";\n", .{});
+                    },
                     .conditional => |i| {
                         print_indentation(indentation_level);
                         std.debug.print("if ", .{});

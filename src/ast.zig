@@ -4,6 +4,8 @@ const token = @import("token.zig");
 const Token = token.Token;
 const TokenType = token.TokenType;
 
+const ArenaAllocator = std.heap.ArenaAllocator;
+
 pub const Literal = struct {
     value: i64,
 
@@ -23,42 +25,21 @@ pub const Identifier = struct {
 pub const UnaryExpr = struct {
     op: TokenType,
     expr: *Expression,
-    fn deinit(self: UnaryExpr, allocator: Allocator) void {
-        self.expr.deinit(allocator);
-        allocator.destroy(self.expr);
-    }
 };
 
 pub const BinaryExpr = struct {
     op: TokenType,
     lexpr: *Expression,
     rexpr: *Expression,
-    fn deinit(self: BinaryExpr, allocator: Allocator) void {
-        self.lexpr.deinit(allocator);
-        self.rexpr.deinit(allocator);
-        allocator.destroy(self.lexpr);
-        allocator.destroy(self.rexpr);
-    }
 };
 
 pub const FunctionCall = struct {
     function_name: Identifier,
     arguments: std.ArrayList(Expression),
-
-    fn deinit(self: FunctionCall, allocator: Allocator) void {
-        for (self.arguments.items) |arg| {
-            arg.deinit(allocator);
-        }
-        self.arguments.deinit();
-    }
 };
 
 pub const ParenthesizedExpression = struct {
     child: *Expression,
-    fn deinit(self: ParenthesizedExpression, allocator: Allocator) void {
-        self.child.deinit(allocator);
-        allocator.destroy(self.child);
-    }
 };
 
 pub const Expression = union(enum) {
@@ -122,17 +103,6 @@ pub const Expression = union(enum) {
 
         return res;
     }
-
-    fn deinit(self: Expression, allocator: Allocator) void {
-        switch (self) {
-            .bin => |a| a.deinit(allocator),
-            .un => |a| a.deinit(allocator),
-            .fn_call => |a| a.deinit(allocator),
-            .paren => |a| a.deinit(allocator),
-            .ident => {},
-            .lit => {},
-        }
-    }
 };
 
 test "destruction of expressions" {
@@ -175,12 +145,6 @@ const If = struct {
 
         return res;
     }
-
-    fn deinit(self: If, allocator: Allocator) void {
-        self.condition.deinit(allocator);
-        self.true_branch.deinit(allocator);
-        self.false_branch.deinit(allocator);
-    }
 };
 
 const Return = struct {
@@ -192,9 +156,32 @@ const Return = struct {
         tokens.* = tokens.*[1..];
         return res;
     }
+};
 
-    fn deinit(self: Return, allocator: Allocator) void {
-        self.returned_value.deinit(allocator);
+const Assignment = struct {
+    id: Identifier,
+    value: Expression,
+
+    fn parse(allocator: Allocator, tokens: *[]const Token) !Assignment {
+        try std.testing.expect(tokens.*[0].tp == .let_kw);
+        tokens.* = tokens.*[1..]; // discard "let"
+
+        const id = Identifier.parse(tokens.*[0]);
+
+        try std.testing.expect(tokens.*[0].tp == .identifier);
+        tokens.* = tokens.*[1..]; // discard identifier
+
+        try std.testing.expect(tokens.*[0].tp == .assign);
+        tokens.* = tokens.*[1..]; // discard "="
+
+        const value = try Expression.parse(allocator, tokens);
+
+        const res = Assignment{ .id = id, .value = value };
+
+        try std.testing.expect(tokens.*[0].tp == .semicolon);
+        tokens.* = tokens.*[1..]; // discard ";"
+
+        return res;
     }
 };
 
@@ -202,25 +189,19 @@ pub const Statement = union(enum) {
     expr: Expression, // this is needed to allow print statements
     ret: Return,
     conditional: If,
+    assign: Assignment,
 
     fn parse(allocator: Allocator, tokens: *[]const Token) !Statement {
         return switch (tokens.*[0].tp) {
             .if_kw => Statement{ .conditional = try If.parse(allocator, tokens) },
             .return_kw => Statement{ .ret = try Return.parse(allocator, tokens) },
+            .let_kw => Statement{ .assign = try Assignment.parse(allocator, tokens) },
             else => {
                 const res = Statement{ .expr = try Expression.parse(allocator, tokens) };
                 tokens.* = tokens.*[1..]; // discard semicolon
                 return res;
             },
         };
-    }
-
-    fn deinit(self: Statement, allocator: Allocator) void {
-        switch (self) {
-            .expr => |a| a.deinit(allocator),
-            .ret => |a| a.deinit(allocator),
-            .conditional => |a| a.deinit(allocator),
-        }
     }
 };
 
@@ -230,7 +211,7 @@ const Block = struct {
     fn empty(allocator: Allocator) !Block {
         var res: Block = undefined;
         res.statements = try allocator.create(std.ArrayList(Statement));
-        res.statements.* = std.ArrayList(Statement).init(allocator);
+        res.statements.* = try std.ArrayList(Statement).initCapacity(allocator, 16);
         return res;
     }
 
@@ -263,12 +244,20 @@ const Block = struct {
         return res;
     }
 
-    fn deinit(self: Block, allocator: Allocator) void {
-        for (self.statements.items) |statement| {
-            statement.deinit(allocator);
+    fn check(self: Block, functions: []const Function, allocator: Allocator, variables: *std.ArrayList(Identifier)) !void {
+        _ = allocator;
+        var num_defined_variables: usize = 0;
+        for (self.children.statements.items) |st| {
+            num_defined_variables += switch (st) {
+                .conditional => 1,
+                else => 0,
+            };
         }
-        self.statements.deinit();
-        allocator.destroy(self.statements);
+
+        for (self.children.statements.items) |st| {
+            try st.check(functions, variables);
+            switch (st.tp) {}
+        }
     }
 };
 
@@ -306,37 +295,35 @@ pub const Function = struct {
         return res;
     }
 
-    fn deinit(self: Function, allocator: Allocator) void {
-        self.params.deinit();
-        self.children.deinit(allocator);
+    fn check(self: Function, functions: []const Function, allocator: Allocator) !void {
+        try self.children.check(functions, allocator);
     }
 };
 
 pub const AST = struct {
     functions: std.ArrayList(Function),
+    alloc: std.heap.ArenaAllocator,
 
     pub fn parse(allocator: Allocator, tokens: []const Token) !AST {
-        var res = AST{ .functions = std.ArrayList(Function).init(allocator) };
+        var res = AST{ .functions = std.ArrayList(Function).init(allocator), .alloc = std.heap.ArenaAllocator.init(allocator) };
 
         var tokens_copy = tokens; // cant mutate the parameter
 
         while (tokens_copy.len > 0) {
-            try res.functions.append(try Function.parse(allocator, &tokens_copy));
+            try res.functions.append(try Function.parse(res.alloc.allocator(), &tokens_copy));
         }
 
         return res;
     }
 
-    pub fn check(self: AST) ?anyerror {
-        _ = self;
-
-        return null;
+    pub fn check(self: AST) !void {
+        for (self.functions.items) |f| {
+            try f.check(self.functions.items);
+        }
     }
 
-    pub fn deinit(self: AST, allocator: Allocator) void {
-        for (self.functions.items) |f| {
-            f.deinit(allocator);
-        }
+    pub fn deinit(self: AST) void {
+        self.alloc.deinit();
         self.functions.deinit();
     }
 };
