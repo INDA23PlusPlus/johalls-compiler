@@ -265,6 +265,11 @@ const Assignment = struct {
         variables: *std.ArrayList(Identifier),
         allocator: Allocator,
     ) !void {
+        for (variables.items) |v| {
+            if (v.name == self.id.name) {
+                return error.VariableRedefinition;
+            }
+        }
         try self.value.check(functions, variables, allocator);
     }
 };
