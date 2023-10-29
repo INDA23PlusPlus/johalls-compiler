@@ -193,7 +193,7 @@ pub fn tokenize(allocator: Allocator, input_str: []const u8) !std.ArrayList(Toke
     var end: usize = 0;
     var is_all_operator_chars = true;
 
-    const delimiting_chars = "{}();!~+-/,";
+    const delimiting_chars = "{}();!~+-*/,";
     const operator_chars = "&|<>=";
     for (input_str, 0..) |ch, i| {
         if (std.mem.indexOf(u8, " \t\r\n", &[_]u8{ch}) != null) {
