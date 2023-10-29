@@ -456,10 +456,15 @@ pub const AST = struct {
     }
 
     pub fn check(self: *AST) !void {
+        var has_main = false;
         for (self.functions.items) |f| {
-            if (std.mem.eql(u8, f.name, "input") or std.mem.eql(u8, f.name, "print")) continue;
+            if (std.mem.eql(u8, f.name, "input") or std.mem.eql(u8, f.name, "print"))
+                continue;
+            if (std.mem.eql(u8, f.name, "main"))
+                has_main = true;
             try f.check(self.functions.items, self.alloc.allocator());
         }
+        if (!has_main) return error.NoMainFunction;
     }
 
     pub fn as_c(self: *const @This(), allocator: Allocator) !std.ArrayList(u8) {
