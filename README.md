@@ -3,6 +3,7 @@ transpiler from D++ to C
 
 ## Usage
 Pass the name of the D++ file you wish to compile as the first argument to the program.
+
 For example: `zig build run -- example.dpp`
 
 ## Output
