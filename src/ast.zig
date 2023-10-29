@@ -103,6 +103,64 @@ pub const Expression = union(enum) {
 
         return res;
     }
+    fn check(
+        self: @This(),
+        functions: []const Function,
+        variables: *std.ArrayList(Identifier),
+        allocator: Allocator,
+    ) !void {
+        const utils = struct {
+            fn var_exists(id: Identifier, vars: *std.ArrayList(Identifier)) !void {
+                var found = false;
+
+                for (vars.items) |e| {
+                    if (std.mem.eql(u8, e.name, id.name)) {
+                        found = true;
+                    }
+                }
+
+                if (!found) {
+                    return error.UnknownIdentifer;
+                }
+            }
+            fn fn_exists(id: Identifier, fns: []const Function) !void {
+                var found = false;
+
+                for (fns) |e| {
+                    if (std.mem.eql(u8, e.name, id.name)) {
+                        found = true;
+                    }
+                }
+
+                if (!found) {
+                    std.debug.print("{s}\n", .{id.name});
+                    return error.UnknownIdentifer;
+                }
+            }
+        };
+        switch (self) {
+            .lit => {},
+            .ident => |e| {
+                try utils.var_exists(e, variables);
+            },
+            .bin => |e| {
+                try e.lexpr.check(functions, variables, allocator);
+                try e.rexpr.check(functions, variables, allocator);
+            },
+            .un => |e| {
+                try e.expr.check(functions, variables, allocator);
+            },
+            .fn_call => |f| {
+                try utils.fn_exists(f.function_name, functions);
+                for (f.arguments.items) |e| {
+                    try e.check(functions, variables, allocator);
+                }
+            },
+            .paren => |e| {
+                try e.child.check(functions, variables, allocator);
+            },
+        }
+    }
 };
 
 test "destruction of expressions" {
@@ -145,6 +203,16 @@ const If = struct {
 
         return res;
     }
+    fn check(
+        self: @This(),
+        functions: []const Function,
+        variables: *std.ArrayList(Identifier),
+        allocator: Allocator,
+    ) !void {
+        try self.condition.check(functions, variables, allocator);
+        try self.true_branch.check(functions, variables, allocator);
+        try self.false_branch.check(functions, variables, allocator);
+    }
 };
 
 const Return = struct {
@@ -155,6 +223,14 @@ const Return = struct {
         const res = Return{ .returned_value = try Expression.parse(allocator, tokens) };
         tokens.* = tokens.*[1..];
         return res;
+    }
+    fn check(
+        self: @This(),
+        functions: []const Function,
+        variables: *std.ArrayList(Identifier),
+        allocator: Allocator,
+    ) !void {
+        try self.returned_value.check(functions, variables, allocator);
     }
 };
 
@@ -183,6 +259,14 @@ const Assignment = struct {
 
         return res;
     }
+    fn check(
+        self: @This(),
+        functions: []const Function,
+        variables: *std.ArrayList(Identifier),
+        allocator: Allocator,
+    ) !void {
+        try self.value.check(functions, variables, allocator);
+    }
 };
 
 pub const Statement = union(enum) {
@@ -202,6 +286,27 @@ pub const Statement = union(enum) {
                 return res;
             },
         };
+    }
+    fn check(
+        self: @This(),
+        functions: []const Function,
+        variables: *std.ArrayList(Identifier),
+        allocator: Allocator,
+    ) !void {
+        switch (self) {
+            .expr => |e| {
+                try e.check(functions, variables, allocator);
+            },
+            .ret => |e| {
+                try e.check(functions, variables, allocator);
+            },
+            .conditional => |e| {
+                try e.check(functions, variables, allocator);
+            },
+            .assign => |e| {
+                try e.check(functions, variables, allocator);
+            },
+        }
     }
 };
 
@@ -244,31 +349,37 @@ const Block = struct {
         return res;
     }
 
-    fn check(self: Block, functions: []const Function, allocator: Allocator, variables: *std.ArrayList(Identifier)) !void {
-        _ = allocator;
+    fn check(
+        self: @This(),
+        functions: []const Function,
+        variables: *std.ArrayList(Identifier),
+        allocator: Allocator,
+    ) anyerror!void {
         var num_defined_variables: usize = 0;
-        for (self.children.statements.items) |st| {
-            num_defined_variables += switch (st) {
-                .conditional => 1,
-                else => 0,
-            };
+        for (self.statements.items) |st| {
+            try st.check(functions, variables, allocator);
+            switch (st) {
+                .assign => |s| {
+                    try variables.append(s.id);
+                },
+                else => {},
+            }
         }
 
-        for (self.children.statements.items) |st| {
-            try st.check(functions, variables);
-            switch (st.tp) {}
+        for (0..num_defined_variables) |_| {
+            _ = variables.pop();
         }
     }
 };
 
 pub const Function = struct {
     children: Block,
-    name_tok: Token,
-    params: std.ArrayList(Token),
+    name: []const u8,
+    params: std.ArrayList(Identifier),
 
     fn parse(allocator: Allocator, tokens: *[]const Token) !Function {
         var res: Function = undefined;
-        res.params = std.ArrayList(Token).init(allocator);
+        res.params = std.ArrayList(Identifier).init(allocator);
         var s = tokens.*;
         if (s.len < 6) {
             return error.NotEnoughTokens;
@@ -276,12 +387,12 @@ pub const Function = struct {
         if (s[0].tp != .fn_kw or s[1].tp != .identifier or s[2].tp != .lparen) {
             return error.IncorrectToken;
         }
-        res.name_tok = s[1];
+        res.name = s[1].str;
         s = s[3..];
         var paren_count: usize = 1;
         while (paren_count > 0) {
             if (s[0].tp == .identifier) {
-                try res.params.append(s[0]);
+                try res.params.append(Identifier.parse(s[0]));
             }
             paren_count += @intFromBool(s[0].tp == .lparen);
             paren_count -= @intFromBool(s[0].tp == .rparen);
@@ -296,7 +407,12 @@ pub const Function = struct {
     }
 
     fn check(self: Function, functions: []const Function, allocator: Allocator) !void {
-        try self.children.check(functions, allocator);
+        var variables = try std.ArrayList(Identifier).initCapacity(allocator, self.params.items.len);
+        for (self.params.items) |i| {
+            try variables.append(i);
+        }
+        defer variables.deinit();
+        try self.children.check(functions, &variables, allocator);
     }
 };
 
@@ -312,14 +428,165 @@ pub const AST = struct {
         while (tokens_copy.len > 0) {
             try res.functions.append(try Function.parse(res.alloc.allocator(), &tokens_copy));
         }
+        try res.functions.append(Function{ .children = undefined, .params = std.ArrayList(Identifier).init(allocator), .name = "input" });
+        var params = try std.ArrayList(Identifier).initCapacity(res.alloc.allocator(), 1);
+        params.appendAssumeCapacity(Identifier{ .name = "x" });
+        try res.functions.append(Function{ .children = undefined, .params = params, .name = "print" });
 
         return res;
     }
 
-    pub fn check(self: AST) !void {
+    pub fn check(self: *AST) !void {
         for (self.functions.items) |f| {
-            try f.check(self.functions.items);
+            if (std.mem.eql(u8, f.name, "input") or std.mem.eql(u8, f.name, "print")) continue;
+            try f.check(self.functions.items, self.alloc.allocator());
         }
+    }
+
+    pub fn as_c(self: *const @This(), allocator: Allocator) !std.ArrayList(u8) {
+        const preamble =
+            \\#include <inttypes.h>
+            \\#include <stdint.h>
+            \\#include <stdio.h>
+            \\
+            \\typedef int64_t i64;
+            \\
+            \\i64 input() {
+            \\    i64 result = 0;
+            \\    (void) scanf("%" PRId64, &result);
+            \\    return result;
+            \\}
+            \\
+            \\i64 print(i64 x) {
+            \\    (void) printf("%" PRId64 "\n", x);
+            \\    return 0;
+            \\}
+            \\
+            \\
+        ;
+        var res = try std.ArrayList(u8).initCapacity(allocator, preamble.len);
+        const utils = struct {
+            fn print_expr(out: *std.ArrayList(u8), ex: Expression) !void {
+                switch (ex) {
+                    .bin => |b| {
+                        try print_expr(out, b.lexpr.*);
+                        try out.append(' ');
+                        try out.appendSlice(b.op.get_representation().?);
+                        try out.append(' ');
+                        try print_expr(out, b.rexpr.*);
+                    },
+                    .un => |u| {
+                        try out.appendSlice(u.op.get_representation().?);
+                        try print_expr(out, u.expr.*);
+                    },
+                    .lit => |l| {
+                        var buf: [24]u8 = undefined;
+                        try out.appendSlice(try std.fmt.bufPrint(&buf, "{}", .{l.value}));
+                    },
+                    .ident => |i| {
+                        try out.appendSlice(i.name);
+                    },
+                    .paren => |p| {
+                        try out.append('(');
+                        try print_expr(out, p.child.*);
+                        try out.append(')');
+                    },
+                    .fn_call => |f| {
+                        try out.appendSlice(f.function_name.name);
+                        try out.append('(');
+                        var first = true;
+                        for (f.arguments.items) |arg| {
+                            if (!first) {
+                                try out.appendSlice(", ");
+                            }
+                            first = false;
+                            try print_expr(out, arg);
+                        }
+                        try out.append(')');
+                    },
+                }
+            }
+
+            fn print_indentation(out: *std.ArrayList(u8), indentation_level: usize) !void {
+                try out.appendNTimes(' ', indentation_level);
+            }
+
+            fn print_statement(out: *std.ArrayList(u8), st: Statement, indentation_level: usize) !void {
+                switch (st) {
+                    .assign => |a| {
+                        try print_indentation(out, indentation_level);
+                        try out.appendSlice("i64 ");
+                        try out.appendSlice(a.id.name);
+                        try out.appendSlice(" = ");
+                        try print_expr(out, a.value);
+                        try out.appendSlice(";\n");
+                    },
+                    .conditional => |i| {
+                        try print_indentation(out, indentation_level);
+                        try out.appendSlice("if (");
+                        try print_expr(out, i.condition);
+                        try out.appendSlice(") {\n");
+                        for (i.true_branch.statements.items) |nx| {
+                            try print_statement(out, nx, indentation_level + 4);
+                        }
+                        try print_indentation(out, indentation_level);
+                        try out.append('}');
+                        if (i.false_branch.statements.items.len > 0) {
+                            try out.appendSlice(" else {\n");
+                            for (i.false_branch.statements.items) |nx| {
+                                try print_statement(out, nx, indentation_level + 4);
+                            }
+                            try print_indentation(out, indentation_level);
+                            try out.appendSlice("}\n");
+                        } else {
+                            try out.append('\n');
+                        }
+                    },
+                    .expr => |ex| {
+                        try print_indentation(out, indentation_level);
+                        try print_expr(out, ex);
+                        try out.appendSlice(";\n");
+                    },
+                    .ret => |ret| {
+                        try print_indentation(out, indentation_level);
+                        try out.appendSlice("return ");
+                        try print_expr(out, ret.returned_value);
+                        try out.appendSlice(";\n");
+                    },
+                }
+            }
+        };
+        try res.appendSlice(preamble);
+        for (self.functions.items) |fun| {
+            if (std.mem.eql(u8, fun.name, "input") or std.mem.eql(u8, fun.name, "print")) continue;
+
+            if (std.mem.eql(u8, fun.name, "main")) {
+                try res.appendSlice("int ");
+            } else {
+                try res.appendSlice("i64 ");
+            }
+            try res.appendSlice(fun.name);
+            try res.append('(');
+            var first = true;
+            for (fun.params.items) |param| {
+                if (!first) {
+                    try res.appendSlice(", ");
+                }
+                first = false;
+                try res.appendSlice("i64 ");
+                try res.appendSlice(param.name);
+            }
+            try res.appendSlice(") {\n");
+
+            for (fun.children.statements.items) |statement| {
+                try utils.print_statement(&res, statement, 4);
+            }
+            try res.appendSlice("}\n\n");
+        }
+
+        while (res.getLast() == '\n') _ = res.pop();
+
+        return res;
     }
 
     pub fn deinit(self: AST) void {
