@@ -15,11 +15,11 @@ i64 print(i64 x) {
     return 0;
 }
 
-i64 fib_contrived(i64 n) {
-    if (n < 2 && !(!1)) {
-        return (n & ~~3);
+i64 fib(i64 n) {
+    if (n < 2) {
+        return n;
     } else {
-        return fib_contrived(n - 1) + fib_contrived(n - 2);
+        return fib(n - 1) + fib(n - 2);
     }
 }
 
@@ -27,10 +27,8 @@ i64 iter(i64 i, i64 n) {
     if (i == n) {
         return 0;
     } else {
-        if (1) {
-            print(fib_contrived(i));
-            return iter(i + 1, n);
-        }
+        print(fib(i));
+        return iter(i + 1, n);
     }
 }
 
