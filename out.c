@@ -6,7 +6,7 @@ typedef int64_t i64;
 
 i64 input() {
     i64 result = 0;
-    (void) scanf("%" PRId64, &result);
+    (void) scanf("%" SCNd64, &result);
     return result;
 }
 
@@ -33,5 +33,5 @@ i64 iter(i64 i, i64 n) {
 }
 
 int main() {
-    i64 _ = iter(0, 10);
+    i64 _ = iter(0, input());
 }

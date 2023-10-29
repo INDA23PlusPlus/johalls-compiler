@@ -453,7 +453,7 @@ pub const AST = struct {
             \\
             \\i64 input() {
             \\    i64 result = 0;
-            \\    (void) scanf("%" PRId64, &result);
+            \\    (void) scanf("%" SCNd64, &result);
             \\    return result;
             \\}
             \\
