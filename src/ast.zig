@@ -308,6 +308,15 @@ pub const Statement = union(enum) {
             },
         }
     }
+
+    fn always_reaches_return(self: @This()) bool {
+        return switch (self) {
+            .ret => true,
+            .expr => false,
+            .conditional => |c| c.true_branch.always_reaches_return() and c.false_branch.always_reaches_return(),
+            .assign => false,
+        };
+    }
 };
 
 const Block = struct {
@@ -370,6 +379,13 @@ const Block = struct {
             _ = variables.pop();
         }
     }
+
+    fn always_reaches_return(self: @This()) bool {
+        for (self.statements.items) |st| {
+            if (st.always_reaches_return()) return true;
+        }
+        return false;
+    }
 };
 
 pub const Function = struct {
@@ -413,6 +429,9 @@ pub const Function = struct {
         }
         defer variables.deinit();
         try self.children.check(functions, &variables, allocator);
+        if (!self.children.always_reaches_return() and !std.mem.eql(u8, "main", self.name)) {
+            return error.NoReturnStatement;
+        }
     }
 };
 
