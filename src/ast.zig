@@ -477,12 +477,13 @@ pub const AST = struct {
             \\#include <inttypes.h>
             \\#include <stdint.h>
             \\#include <stdio.h>
+            \\#include <stdlib.h>
             \\
             \\typedef int64_t i64;
             \\
-            \\i64 input() {
+            \\i64 input(void) {
             \\    i64 result = 0;
-            \\    (void) scanf("%" SCNd64, &result);
+            \\    if (scanf("%" SCNd64, &result) < 1) exit(-1);
             \\    return result;
             \\}
             \\
@@ -604,6 +605,9 @@ pub const AST = struct {
                 first = false;
                 try res.appendSlice("i64 ");
                 try res.appendSlice(param.name);
+            }
+            if (fun.params.items.len == 0) {
+                try res.appendSlice("void");
             }
             try res.appendSlice(") {\n");
 
