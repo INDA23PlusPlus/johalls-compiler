@@ -1,0 +1,7 @@
+fn f(n) {
+  return 10 * (n % 10) + n / 10;
+}
+
+fn main() {
+  print(f(input()));
+}

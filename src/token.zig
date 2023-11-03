@@ -109,6 +109,7 @@ pub const Token = struct {
             .subtract => true,
             .multiply => true,
             .divide => true,
+            .modulo => true,
             .bit_or => true,
             .bit_and => true,
             .bit_xor => true,

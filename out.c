@@ -15,23 +15,10 @@ i64 print(i64 x) {
     return 0;
 }
 
-i64 fib(i64 n) {
-    if (n < 2) {
-        return n;
-    } else {
-        return fib(n - 1) + fib(n - 2);
-    }
-}
-
-i64 iter(i64 i, i64 n) {
-    if (i == n) {
-        return 0;
-    } else {
-        print(fib(i));
-        return iter(i + 1, n);
-    }
+i64 f(i64 n) {
+    return 10 * (n % 10) + n / 10;
 }
 
 int main() {
-    i64 _ = iter(0, input());
+    print(f(input()));
 }
