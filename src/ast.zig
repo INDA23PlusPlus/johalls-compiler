@@ -164,7 +164,7 @@ pub const Expression = union(enum) {
 };
 
 test "destruction of expressions" {
-    var leaf = try std.testing.allocator.create(Expression);
+    const leaf = try std.testing.allocator.create(Expression);
     leaf.* = Expression{ .lit = Literal{ .value = 0 } };
 
     var root: Expression = Expression{ .un = UnaryExpr{ .op = .log_not, .expr = leaf } };
@@ -375,6 +375,7 @@ const Block = struct {
             switch (st) {
                 .assign => |s| {
                     try variables.append(s.id);
+                    num_defined_variables += 1;
                 },
                 else => {},
             }
