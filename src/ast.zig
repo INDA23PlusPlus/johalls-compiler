@@ -10,7 +10,9 @@ pub const Literal = struct {
     value: i64,
 
     fn has_side_effects(self: *const @This(), functions_with_side_effects: [][]const u8) bool {
+    fn has_side_effects(self: *const @This(), functions_with_side_effects: [][]const u8) bool {
         _ = self;
+        _ = functions_with_side_effects;
         _ = functions_with_side_effects;
         return false;
     }
@@ -24,7 +26,9 @@ pub const Identifier = struct {
     name: []const u8,
 
     fn has_side_effects(self: *const @This(), functions_with_side_effects: [][]const u8) bool {
+    fn has_side_effects(self: *const @This(), functions_with_side_effects: [][]const u8) bool {
         _ = self;
+        _ = functions_with_side_effects;
         _ = functions_with_side_effects;
         return false;
     }
@@ -40,6 +44,8 @@ pub const UnaryExpr = struct {
 
     fn has_side_effects(self: *const @This(), functions_with_side_effects: [][]const u8) bool {
         return self.expr.has_side_effects(functions_with_side_effects);
+    fn has_side_effects(self: *const @This(), functions_with_side_effects: [][]const u8) bool {
+        return self.expr.has_side_effects(functions_with_side_effects);
     }
 };
 
@@ -48,6 +54,8 @@ pub const BinaryExpr = struct {
     lexpr: *Expression,
     rexpr: *Expression,
 
+    fn has_side_effects(self: *const @This(), functions_with_side_effects: [][]const u8) bool {
+        return self.lexpr.has_side_effects(functions_with_side_effects) or self.rexpr.has_side_effects(functions_with_side_effects);
     fn has_side_effects(self: *const @This(), functions_with_side_effects: [][]const u8) bool {
         return self.lexpr.has_side_effects(functions_with_side_effects) or self.rexpr.has_side_effects(functions_with_side_effects);
     }
@@ -77,6 +85,8 @@ pub const ParenthesizedExpression = struct {
 
     fn has_side_effects(self: *const @This(), functions_with_side_effects: [][]const u8) bool {
         return self.child.has_side_effects(functions_with_side_effects);
+    fn has_side_effects(self: *const @This(), functions_with_side_effects: [][]const u8) bool {
+        return self.child.has_side_effects(functions_with_side_effects);
     }
 };
 
@@ -89,7 +99,9 @@ pub const Expression = union(enum) {
     paren: ParenthesizedExpression,
 
     fn has_side_effects(self: *const @This(), functions_with_side_effects: [][]const u8) bool {
+    fn has_side_effects(self: *const @This(), functions_with_side_effects: [][]const u8) bool {
         return switch (self.*) {
+            inline else => |v| v.has_side_effects(functions_with_side_effects),
             inline else => |v| v.has_side_effects(functions_with_side_effects),
         };
     }
@@ -222,6 +234,8 @@ const If = struct {
 
     fn has_side_effects(self: *const @This(), functions_with_side_effects: [][]const u8) bool {
         return self.condition.has_side_effects(functions_with_side_effects) or self.true_branch.has_side_effects(functions_with_side_effects) or self.false_branch.has_side_effects(functions_with_side_effects);
+    fn has_side_effects(self: *const @This(), functions_with_side_effects: [][]const u8) bool {
+        return self.condition.has_side_effects(functions_with_side_effects) or self.true_branch.has_side_effects(functions_with_side_effects) or self.false_branch.has_side_effects(functions_with_side_effects);
     }
 
     fn parse(allocator: Allocator, tokens: *[]const Token) anyerror!If {
@@ -268,6 +282,8 @@ const Return = struct {
 
     fn has_side_effects(self: *const @This(), functions_with_side_effects: [][]const u8) bool {
         return self.returned_value.has_side_effects(functions_with_side_effects);
+    fn has_side_effects(self: *const @This(), functions_with_side_effects: [][]const u8) bool {
+        return self.returned_value.has_side_effects(functions_with_side_effects);
     }
     fn parse(allocator: Allocator, tokens: *[]const Token) !Return {
         tokens.* = tokens.*[1..];
@@ -289,6 +305,8 @@ const Assignment = struct {
     id: Identifier,
     value: Expression,
 
+    fn has_side_effects(self: *const @This(), functions_with_side_effects: [][]const u8) bool {
+        return self.value.has_side_effects(functions_with_side_effects);
     fn has_side_effects(self: *const @This(), functions_with_side_effects: [][]const u8) bool {
         return self.value.has_side_effects(functions_with_side_effects);
     }
@@ -336,7 +354,9 @@ pub const Statement = union(enum) {
     assign: Assignment,
 
     fn has_side_effects(self: *const @This(), functions_with_side_effects: [][]const u8) bool {
+    fn has_side_effects(self: *const @This(), functions_with_side_effects: [][]const u8) bool {
         return switch (self.*) {
+            inline else => |v| v.has_side_effects(functions_with_side_effects),
             inline else => |v| v.has_side_effects(functions_with_side_effects),
         };
     }
@@ -396,7 +416,9 @@ const Block = struct {
     }
 
     fn has_side_effects(self: *const @This(), functions_with_side_effects: [][]const u8) bool {
+    fn has_side_effects(self: *const @This(), functions_with_side_effects: [][]const u8) bool {
         for (self.statements.items) |st| {
+            if (st.has_side_effects(functions_with_side_effects)) {
             if (st.has_side_effects(functions_with_side_effects)) {
                 return true;
             }
@@ -745,6 +767,7 @@ pub const AST = struct {
         for (self.functions.items) |fun| {
             if (std.mem.eql(u8, fun.name, "input") or std.mem.eql(u8, fun.name, "print")) continue;
 
+            const pure_function = !fun.has_side_effects(functions_with_side_effects.items);
             const pure_function = !fun.has_side_effects(functions_with_side_effects.items);
 
             const fn_name = fun.name;
