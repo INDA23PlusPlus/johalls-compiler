@@ -9,6 +9,11 @@ const ArenaAllocator = std.heap.ArenaAllocator;
 pub const Literal = struct {
     value: i64,
 
+    fn has_side_effects(self: *const @This()) bool {
+        _ = self;
+        return false;
+    }
+
     fn parse(tok: Token) Literal {
         return Literal{ .value = std.fmt.parseInt(i64, tok.str, 10) catch |e| std.debug.panic("{}\n", .{e}) };
     }
@@ -16,6 +21,11 @@ pub const Literal = struct {
 
 pub const Identifier = struct {
     name: []const u8,
+
+    fn has_side_effects(self: *const @This()) bool {
+        _ = self;
+        return false;
+    }
 
     fn parse(tok: Token) Identifier {
         return Identifier{ .name = tok.str };
@@ -25,21 +35,42 @@ pub const Identifier = struct {
 pub const UnaryExpr = struct {
     op: TokenType,
     expr: *Expression,
+
+    fn has_side_effects(self: *const @This()) bool {
+        return self.expr.has_side_effects();
+    }
 };
 
 pub const BinaryExpr = struct {
     op: TokenType,
     lexpr: *Expression,
     rexpr: *Expression,
+
+    fn has_side_effects(self: *const @This()) bool {
+        return self.lexpr.has_side_effects() or self.rexpr.has_side_effects();
+    }
 };
 
 pub const FunctionCall = struct {
     function_name: Identifier,
     arguments: std.ArrayList(Expression),
+
+    fn has_side_effects(self: *const @This()) bool {
+        for (self.arguments.items) |a| {
+            if (a.has_side_effects()) {
+                return true;
+            }
+        }
+        return std.mem.eql(u8, self.function_name.name, "input") or std.mem.eql(u8, self.function_name.name, "print");
+    }
 };
 
 pub const ParenthesizedExpression = struct {
     child: *Expression,
+
+    fn has_side_effects(self: *const @This()) bool {
+        return self.child.has_side_effects();
+    }
 };
 
 pub const Expression = union(enum) {
@@ -49,6 +80,12 @@ pub const Expression = union(enum) {
     un: UnaryExpr,
     fn_call: FunctionCall,
     paren: ParenthesizedExpression,
+
+    fn has_side_effects(self: *const @This()) bool {
+        return switch (self.*) {
+            inline else => |v| v.has_side_effects(),
+        };
+    }
 
     fn parse(allocator: Allocator, tokens: *[]const Token) !Expression {
         var s = tokens.*;
@@ -176,6 +213,10 @@ const If = struct {
     true_branch: Block,
     false_branch: Block,
 
+    fn has_side_effects(self: *const @This()) bool {
+        return self.condition.has_side_effects() or self.true_branch.has_side_effects() or self.false_branch.has_side_effects();
+    }
+
     fn parse(allocator: Allocator, tokens: *[]const Token) anyerror!If {
         var s = tokens.*;
         var res: If = undefined;
@@ -218,6 +259,9 @@ const If = struct {
 const Return = struct {
     returned_value: Expression,
 
+    fn has_side_effects(self: *const @This()) bool {
+        return self.returned_value.has_side_effects();
+    }
     fn parse(allocator: Allocator, tokens: *[]const Token) !Return {
         tokens.* = tokens.*[1..];
         const res = Return{ .returned_value = try Expression.parse(allocator, tokens) };
@@ -237,6 +281,10 @@ const Return = struct {
 const Assignment = struct {
     id: Identifier,
     value: Expression,
+
+    fn has_side_effects(self: *const @This()) bool {
+        return self.value.has_side_effects();
+    }
 
     fn parse(allocator: Allocator, tokens: *[]const Token) !Assignment {
         try std.testing.expect(tokens.*[0].tp == .let_kw);
@@ -279,6 +327,12 @@ pub const Statement = union(enum) {
     ret: Return,
     conditional: If,
     assign: Assignment,
+
+    fn has_side_effects(self: *const @This()) bool {
+        return switch (self.*) {
+            inline else => |v| v.has_side_effects(),
+        };
+    }
 
     fn parse(allocator: Allocator, tokens: *[]const Token) !Statement {
         return switch (tokens.*[0].tp) {
@@ -332,6 +386,15 @@ const Block = struct {
         res.statements = try allocator.create(std.ArrayList(Statement));
         res.statements.* = try std.ArrayList(Statement).initCapacity(allocator, 16);
         return res;
+    }
+
+    fn has_side_effects(self: *const @This()) bool {
+        for (self.statements.items) |st| {
+            if (st.has_side_effects()) {
+                return true;
+            }
+        }
+        return false;
     }
 
     fn parse(allocator: Allocator, tokens: *[]const Token) !Block {
@@ -398,6 +461,10 @@ pub const Function = struct {
     children: Block,
     name: []const u8,
     params: std.ArrayList(Identifier),
+
+    fn has_side_effects(self: *const @This()) bool {
+        return self.children.has_side_effects();
+    }
 
     fn parse(allocator: Allocator, tokens: *[]const Token) !Function {
         var res: Function = undefined;
@@ -479,16 +546,22 @@ pub const AST = struct {
             \\#include <stdint.h>
             \\#include <stdio.h>
             \\#include <stdlib.h>
+            \\#include <stdbool.h>
             \\
-            \\typedef int64_t i64;
             \\
-            \\i64 input(void) {
-            \\    i64 result = 0;
+            \\struct CacheEntry {
+            \\    bool is_full;
+            \\    int64_t key;
+            \\    int64_t value;
+            \\};
+            \\
+            \\int64_t input(void) {
+            \\    int64_t result = 0;
             \\    if (scanf("%" SCNd64, &result) < 1) exit(-1);
             \\    return result;
             \\}
             \\
-            \\i64 print(i64 x) {
+            \\int64_t print(int64_t x) {
             \\    (void) printf("%" PRId64 "\n", x);
             \\    return 0;
             \\}
@@ -546,7 +619,7 @@ pub const AST = struct {
                 switch (st) {
                     .assign => |a| {
                         try print_indentation(out, indentation_level);
-                        try out.appendSlice("i64 ");
+                        try out.appendSlice("int64_t ");
                         try out.appendSlice(a.id.name);
                         try out.appendSlice(" = ");
                         try print_expr(out, a.value);
@@ -591,12 +664,36 @@ pub const AST = struct {
         for (self.functions.items) |fun| {
             if (std.mem.eql(u8, fun.name, "input") or std.mem.eql(u8, fun.name, "print")) continue;
 
-            if (std.mem.eql(u8, fun.name, "main")) {
+            const pure_function = !fun.has_side_effects();
+
+            const fn_name = fun.name;
+
+            if (std.mem.eql(u8, fn_name, "main")) {
                 try res.appendSlice("int ");
             } else {
-                try res.appendSlice("i64 ");
+                try res.appendSlice("int64_t ");
             }
-            try res.appendSlice(fun.name);
+            if (pure_function) {
+                try std.fmt.format(res.writer(),
+                    \\{s}_impl(int64_t);
+                    \\int64_t {s}(int64_t x) {{
+                    \\    static struct CacheEntry __cache[1229];
+                    \\    if (__cache[x % 1229].is_full && __cache[x % 1229].key == x) {{
+                    \\        return __cache[x % 1229].value;
+                    \\    }}
+                    \\    struct CacheEntry value;
+                    \\    value.is_full = true;
+                    \\    value.key = x;
+                    \\    value.value = {s}_impl(x);
+                    \\    __cache[x % 1229] = value;
+                    \\    return value.value;
+                    \\}}
+                    \\
+                    \\int64_t {s}_impl
+                , .{ fn_name, fn_name, fn_name, fn_name });
+            } else {
+                try res.appendSlice(fn_name);
+            }
             try res.append('(');
             var first = true;
             for (fun.params.items) |param| {
@@ -604,7 +701,7 @@ pub const AST = struct {
                     try res.appendSlice(", ");
                 }
                 first = false;
-                try res.appendSlice("i64 ");
+                try res.appendSlice("int64_t ");
                 try res.appendSlice(param.name);
             }
             if (fun.params.items.len == 0) {
