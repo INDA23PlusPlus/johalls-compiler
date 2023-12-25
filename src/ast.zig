@@ -543,17 +543,28 @@ pub const AST = struct {
     pub fn as_c(self: *const @This(), allocator: Allocator) !std.ArrayList(u8) {
         const preamble =
             \\#include <inttypes.h>
+            \\#include <stdarg.h>
+            \\#include <stdbool.h>
             \\#include <stdint.h>
             \\#include <stdio.h>
             \\#include <stdlib.h>
-            \\#include <stdbool.h>
+            \\#include <string.h>
             \\
+            \\#define NUMARGS(...) (sizeof((int64_t[]){__VA_ARGS__}) / sizeof(int64_t))
+            \\#define HASH(...) (_get_hash(NUMARGS(__VA_ARGS__), __VA_ARGS__))
             \\
-            \\struct CacheEntry {
-            \\    bool is_full;
-            \\    int64_t key;
-            \\    int64_t value;
-            \\};
+            \\int64_t _get_hash(int numargs, ...) {
+            \\    uint64_t result = 194114084445485833;
+            \\    va_list ap;
+            \\
+            \\    va_start(ap, numargs);
+            \\    while (numargs--)
+            \\        result = result * 31 ^ va_arg(ap, int64_t);
+            \\    va_end(ap);
+            \\
+            \\    return result;
+            \\}
+            \\
             \\
             \\int64_t input(void) {
             \\    int64_t result = 0;
@@ -659,8 +670,44 @@ pub const AST = struct {
                     },
                 }
             }
+
+            fn print_param_list(out: *std.ArrayList(u8), idents: []const Identifier, is_declaration: bool) !void {
+                var first = true;
+                for (idents) |param| {
+                    if (!first) {
+                        try out.appendSlice(", ");
+                    }
+                    first = false;
+                    if (is_declaration) {
+                        try out.appendSlice("int64_t ");
+                    }
+                    try out.appendSlice(param.name);
+                }
+                if (idents.len == 0 and is_declaration) {
+                    try out.appendSlice("void");
+                }
+            }
         };
         try res.appendSlice(preamble);
+
+        for (self.functions.items) |fun| {
+            if (std.mem.eql(u8, fun.name, "input") or std.mem.eql(u8, fun.name, "print")) continue;
+
+            const fn_name = fun.name;
+
+            if (std.mem.eql(u8, fn_name, "main")) {
+                try res.appendSlice("int ");
+            } else {
+                try res.appendSlice("int64_t ");
+            }
+
+            try res.appendSlice(fn_name);
+
+            try res.append('(');
+            try utils.print_param_list(&res, fun.params.items, true);
+            try res.appendSlice(");\n");
+        }
+        try res.append('\n');
         for (self.functions.items) |fun| {
             if (std.mem.eql(u8, fun.name, "input") or std.mem.eql(u8, fun.name, "print")) continue;
 
@@ -674,39 +721,62 @@ pub const AST = struct {
                 try res.appendSlice("int64_t ");
             }
             if (pure_function) {
-                try std.fmt.format(res.writer(),
-                    \\{s}_impl(int64_t);
-                    \\int64_t {s}(int64_t x) {{
-                    \\    static struct CacheEntry __cache[1229];
-                    \\    if (__cache[x % 1229].is_full && __cache[x % 1229].key == x) {{
-                    \\        return __cache[x % 1229].value;
-                    \\    }}
-                    \\    struct CacheEntry value;
-                    \\    value.is_full = true;
-                    \\    value.key = x;
-                    \\    value.value = {s}_impl(x);
-                    \\    __cache[x % 1229] = value;
-                    \\    return value.value;
-                    \\}}
-                    \\
-                    \\int64_t {s}_impl
-                , .{ fn_name, fn_name, fn_name, fn_name });
+                try std.fmt.format(res.writer(), "{s}_impl(", .{fn_name});
+                try utils.print_param_list(&res, fun.params.items, true);
+                try res.appendSlice(");\n");
+
+                try std.fmt.format(res.writer(), "int64_t {s}(", .{fun.name});
+                try utils.print_param_list(&res, fun.params.items, true);
+                try res.appendSlice(") {\n");
+
+                try res.appendSlice("    struct CacheEntry {\n");
+                for (fun.params.items) |param| {
+                    try std.fmt.format(res.writer(), "        int64_t {s};\n", .{param.name});
+                }
+                try res.appendSlice("        int64_t _hash;\n");
+                try res.appendSlice("        int64_t _cached_value;\n");
+                try res.appendSlice("    };\n");
+                try res.appendSlice("    static struct CacheEntry _cache[1229];\n");
+
+                try res.appendSlice("    int64_t hash = HASH(");
+                try utils.print_param_list(&res, fun.params.items, false);
+                try res.appendSlice(");\n");
+
+                try res.appendSlice("    if (_cache[hash % 1229]._hash == hash) {\n");
+
+                try res.appendSlice("        if (");
+                var first = true;
+                for (fun.params.items) |param| {
+                    if (!first) {
+                        try res.appendSlice(" & ");
+                    }
+                    first = false;
+                    try std.fmt.format(res.writer(), "(int) (_cache[hash % 1229].{s} == {s})", .{ param.name, param.name });
+                }
+                try res.appendSlice(") {\n");
+                try res.appendSlice("            return _cache[hash % 1229]._cached_value;\n");
+                try res.appendSlice("        }\n");
+
+                try res.appendSlice("    }\n");
+                try res.appendSlice("    struct CacheEntry entry;\n");
+                for (fun.params.items) |param| {
+                    try std.fmt.format(res.writer(), "    entry.{s} = {s};\n", .{ param.name, param.name });
+                }
+                try res.appendSlice("    entry._hash = hash;\n");
+                try std.fmt.format(res.writer(), "    entry._cached_value = {s}_impl(", .{fun.name});
+                try utils.print_param_list(&res, fun.params.items, false);
+                try res.appendSlice(");\n");
+                try res.appendSlice("    memcpy(&_cache[hash % 1229], &entry, sizeof(struct CacheEntry));\n");
+                try res.appendSlice("    return entry._cached_value;\n");
+
+                try res.appendSlice("}\n\n");
+
+                try std.fmt.format(res.writer(), "int64_t {s}_impl", .{fn_name});
             } else {
                 try res.appendSlice(fn_name);
             }
             try res.append('(');
-            var first = true;
-            for (fun.params.items) |param| {
-                if (!first) {
-                    try res.appendSlice(", ");
-                }
-                first = false;
-                try res.appendSlice("int64_t ");
-                try res.appendSlice(param.name);
-            }
-            if (fun.params.items.len == 0) {
-                try res.appendSlice("void");
-            }
+            try utils.print_param_list(&res, fun.params.items, true);
             try res.appendSlice(") {\n");
 
             for (fun.children.statements.items) |statement| {
