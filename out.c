@@ -9,15 +9,15 @@
 #define NUMARGS(...) (sizeof((int64_t[]){__VA_ARGS__}) / sizeof(int64_t))
 #define HASH(...) (_get_hash(NUMARGS(__VA_ARGS__), __VA_ARGS__))
 
-int64_t _get_hash(int numargs, ...) {
+uint64_t _get_hash(int numargs, ...) {
     uint64_t result = 194114084445485833;
     va_list ap;
 
     va_start(ap, numargs);
     while (numargs--)
-        result = result * 31 ^ va_arg(ap, int64_t);
+        result = result * 31 ^ (uint64_t) va_arg(ap, int64_t);
     va_end(ap);
-
+    if (result == 0) return 1; // could cause bug with initialization of cache if hash was 0
     return result;
 }
 
@@ -41,11 +41,11 @@ int64_t fib_impl(int64_t n);
 int64_t fib(int64_t n) {
     struct CacheEntry {
         int64_t n;
-        int64_t _hash;
+        uint64_t _hash;
         int64_t _cached_value;
     };
     static struct CacheEntry _cache[1229];
-    int64_t hash = HASH(n);
+    uint64_t hash = HASH(n);
     if (_cache[hash % 1229]._hash == hash) {
         if ((int) (_cache[hash % 1229].n == n)) {
             return _cache[hash % 1229]._cached_value;

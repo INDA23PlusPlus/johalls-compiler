@@ -553,13 +553,13 @@ pub const AST = struct {
             \\#define NUMARGS(...) (sizeof((int64_t[]){__VA_ARGS__}) / sizeof(int64_t))
             \\#define HASH(...) (_get_hash(NUMARGS(__VA_ARGS__), __VA_ARGS__))
             \\
-            \\int64_t _get_hash(int numargs, ...) {
+            \\uint64_t _get_hash(int numargs, ...) {
             \\    uint64_t result = 194114084445485833;
             \\    va_list ap;
             \\
             \\    va_start(ap, numargs);
             \\    while (numargs--)
-            \\        result = result * 31 ^ va_arg(ap, int64_t);
+            \\        result = result * 31 ^ (uint64_t) va_arg(ap, int64_t);
             \\    va_end(ap);
             \\    if (result == 0) return 1; // could cause bug with initialization of cache if hash was 0
             \\    return result;
@@ -733,12 +733,12 @@ pub const AST = struct {
                 for (fun.params.items) |param| {
                     try std.fmt.format(res.writer(), "        int64_t {s};\n", .{param.name});
                 }
-                try res.appendSlice("        int64_t _hash;\n");
+                try res.appendSlice("        uint64_t _hash;\n");
                 try res.appendSlice("        int64_t _cached_value;\n");
                 try res.appendSlice("    };\n");
                 try res.appendSlice("    static struct CacheEntry _cache[1229];\n");
 
-                try res.appendSlice("    int64_t hash = HASH(");
+                try res.appendSlice("    uint64_t hash = HASH(");
                 try utils.print_param_list(&res, fun.params.items, false);
                 try res.appendSlice(");\n");
 
