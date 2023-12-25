@@ -23,7 +23,6 @@ uint64_t _get_hash(int numargs, ...) {
     return result;
 }
 
-
 int64_t _dpp_input(void) {
     int64_t result = 0;
     if (scanf("%" SCNd64, &result) < 1) exit(-1);
@@ -35,43 +34,51 @@ int64_t _dpp_print(int64_t x) {
     return 0;
 }
 
-int64_t _dpp_ack(int64_t _dpp_m, int64_t _dpp_n);
-int main(void);
+int64_t _dpp_fib(int64_t _dpp_n);
+int64_t _dpp_iter(int64_t _dpp_i, int64_t _dpp_n);
+int64_t _dpp_main(void);
 
-int64_t _dpp_ack_impl(int64_t _dpp_m, int64_t _dpp_n);
-int64_t _dpp_ack(int64_t _dpp_m, int64_t _dpp_n) {
+int64_t _dpp_fib_impl(int64_t _dpp_n);
+int64_t _dpp_fib(int64_t _dpp_n) {
     struct CacheEntry {
-        int64_t m;
         int64_t n;
         uint64_t _hash;
         int64_t _cached_value;
     };
     static struct CacheEntry _cache[CACHE_SIZE];
-    uint64_t hash = HASH(_dpp_m, _dpp_n);
+    uint64_t hash = HASH(_dpp_n);
     if (_cache[hash % CACHE_SIZE]._hash == hash) {
-        if ((int) (_cache[hash % CACHE_SIZE].m == _dpp_m) & (int) (_cache[hash % CACHE_SIZE].n == _dpp_n)) {
+        if ((int) (_cache[hash % CACHE_SIZE].n == _dpp_n)) {
             return _cache[hash % CACHE_SIZE]._cached_value;
         }
     }
     struct CacheEntry entry;
-    entry.m = _dpp_m;
     entry.n = _dpp_n;
     entry._hash = hash;
-    entry._cached_value = _dpp_ack_impl(_dpp_m, _dpp_n);
+    entry._cached_value = _dpp_fib_impl(_dpp_n);
     memcpy(&_cache[hash % CACHE_SIZE], &entry, sizeof(struct CacheEntry));
     return entry._cached_value;
 }
 
-int64_t _dpp_ack_impl(int64_t _dpp_m, int64_t _dpp_n) {
-    if (_dpp_m == 0) {
-        return _dpp_n + 1;
+int64_t _dpp_fib_impl(int64_t _dpp_n) {
+    if (_dpp_n < 2) {
+        return _dpp_n;
+    } else {
+        return _dpp_fib(_dpp_n - 1) + _dpp_fib(_dpp_n - 2);
     }
-    if (_dpp_n == 0) {
-        return _dpp_ack(_dpp_m - 1, 1);
-    }
-    return _dpp_ack(_dpp_m - 1, _dpp_ack(_dpp_m, _dpp_n - 1));
 }
 
-int main(void) {
-    _dpp_print(_dpp_ack(_dpp_input(), _dpp_input()));
+int64_t _dpp_iter(int64_t _dpp_i, int64_t _dpp_n) {
+    if (_dpp_i == _dpp_n) {
+        return 0;
+    } else {
+        _dpp_print(_dpp_fib(_dpp_i));
+        return _dpp_iter(_dpp_i + 1, _dpp_n);
+    }
 }
+
+int64_t _dpp_main(void) {
+    return _dpp_iter(0, _dpp_input());
+}
+
+int main(void) { return (int) _dpp_main(); }
