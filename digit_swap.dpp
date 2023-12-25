@@ -3,5 +3,10 @@ fn f(n) {
 }
 
 fn main() {
-  return print(f(input()));
+  let n = input();
+  print(f(n));
+  print(f(f(n)));
+  print(f(f(f(n))));
+  print(f(f(f(f(n)))));
+  return 0;
 }

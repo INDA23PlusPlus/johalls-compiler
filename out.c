@@ -34,12 +34,11 @@ int64_t _dpp_print(int64_t x) {
     return 0;
 }
 
-int64_t _dpp_fib(int64_t _dpp_n);
-int64_t _dpp_iter(int64_t _dpp_i, int64_t _dpp_n);
+int64_t _dpp_f(int64_t _dpp_n);
 int64_t _dpp_main(void);
 
-int64_t _dpp_fib_impl(int64_t _dpp_n);
-int64_t _dpp_fib(int64_t _dpp_n) {
+int64_t _dpp_f_impl(int64_t _dpp_n);
+int64_t _dpp_f(int64_t _dpp_n) {
     struct CacheEntry {
         int64_t n;
         uint64_t _hash;
@@ -55,30 +54,22 @@ int64_t _dpp_fib(int64_t _dpp_n) {
     struct CacheEntry entry;
     entry.n = _dpp_n;
     entry._hash = hash;
-    entry._cached_value = _dpp_fib_impl(_dpp_n);
+    entry._cached_value = _dpp_f_impl(_dpp_n);
     memcpy(&_cache[hash % CACHE_SIZE], &entry, sizeof(struct CacheEntry));
     return entry._cached_value;
 }
 
-int64_t _dpp_fib_impl(int64_t _dpp_n) {
-    if (_dpp_n < 2) {
-        return _dpp_n;
-    } else {
-        return _dpp_fib(_dpp_n - 1) + _dpp_fib(_dpp_n - 2);
-    }
-}
-
-int64_t _dpp_iter(int64_t _dpp_i, int64_t _dpp_n) {
-    if (_dpp_i == _dpp_n) {
-        return 0;
-    } else {
-        _dpp_print(_dpp_fib(_dpp_i));
-        return _dpp_iter(_dpp_i + 1, _dpp_n);
-    }
+int64_t _dpp_f_impl(int64_t _dpp_n) {
+    return 10 * (_dpp_n % 10) + _dpp_n / 10;
 }
 
 int64_t _dpp_main(void) {
-    return _dpp_iter(0, _dpp_input());
+    int64_t _dpp_n = _dpp_input();
+    _dpp_print(_dpp_f(_dpp_n));
+    _dpp_print(_dpp_f(_dpp_f(_dpp_n)));
+    _dpp_print(_dpp_f(_dpp_f(_dpp_f(_dpp_n))));
+    _dpp_print(_dpp_f(_dpp_f(_dpp_f(_dpp_f(_dpp_n)))));
+    return 0;
 }
 
 int main(void) { return (int) _dpp_main(); }

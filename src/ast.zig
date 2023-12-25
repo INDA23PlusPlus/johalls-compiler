@@ -495,7 +495,6 @@ pub const Function = struct {
             paren_count -= @intFromBool(s[0].tp == .rparen);
             s = s[1..];
         }
-        // std.debug.print("parsing function {}\n", .{s[0].tp});
         tokens.* = s;
 
         res.children = try Block.parse(allocator, tokens);
@@ -669,7 +668,7 @@ pub const AST = struct {
                 switch (st) {
                     .assign => |a| {
                         try print_indentation(out, indentation_level);
-                        try out.appendSlice("int64_t ");
+                        try out.appendSlice("int64_t _dpp_");
                         try out.appendSlice(a.id.name);
                         try out.appendSlice(" = ");
                         try print_expr(out, a.value);
