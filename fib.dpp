@@ -16,5 +16,5 @@ fn iter(i, n) {
 }
 
 fn main() {
-    let _ = iter(0, input());
+    return iter(0, input());
 }

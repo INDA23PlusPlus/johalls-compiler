@@ -3,5 +3,5 @@ fn f(n) {
 }
 
 fn main() {
-  print(f(input()));
+  return print(f(input()));
 }

@@ -13,8 +13,9 @@ fn iter(i, n) {
         print(fib_contrived(i));
         return iter(i + 1, n);
     }
+    return 0;
 }
 
 fn main() {
-    let _ = iter(0, 10);
+    return iter(0, 10);
 }

@@ -10,4 +10,5 @@ fn ack(m, n) {
 
 fn main() {
     print(ack(input(), input()));
+    return 0;
 }
