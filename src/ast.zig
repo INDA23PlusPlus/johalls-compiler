@@ -561,7 +561,7 @@ pub const AST = struct {
             \\    while (numargs--)
             \\        result = result * 31 ^ va_arg(ap, int64_t);
             \\    va_end(ap);
-            \\
+            \\    if (result == 0) return 1; // could cause bug with initialization of cache if hash was 0
             \\    return result;
             \\}
             \\
